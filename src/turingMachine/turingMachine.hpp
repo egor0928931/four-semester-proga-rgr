@@ -7,6 +7,10 @@
 
 #include <algorithm>
 
+#include <stdexcept>
+
+#include <unordered_map>
+
 // Сырая логика машины тьюринга
 
 namespace Turing {
@@ -17,7 +21,7 @@ struct Action {
     state_t nextState;
     char32_t setChar;
 
-    enum class ActionsEnum {
+    enum class ActionsEnum : uint32_t {
         FORWARD,
         BACKWARD,
         STAY,
@@ -31,6 +35,23 @@ class Tape {
     Tape() : data_m(64, U'_') {
         origin_m = data_m.size() / 2;
         currPos_m = 0;
+    }
+
+    Tape(std::vector<char32_t> && data, int32_t origin, int32_t currPos) {
+        if (data.size() <= origin || origin < 0) {
+            throw std::invalid_argument("Origin outside tape data");
+        }
+
+        int32_t index = origin + currPos;
+        if (data.size() <= index || index < 0) {
+            throw std::invalid_argument("Current position outside tape data");
+        }
+
+        data_m = std::move(data);
+
+        origin_m = origin;
+
+        currPos_m = currPos;
     }
 
     // Интерфейс для работы
@@ -76,6 +97,18 @@ class Tape {
 
     int32_t currPos() const {
         return currPos_m;
+    }
+
+    int32_t origin() const {
+        return origin_m;
+    }
+
+    uint32_t size() const {
+        return data_m.size();
+    }
+
+    const char32_t * rawData() const {
+        return data_m.data();
     }
 
     private:
@@ -144,11 +177,19 @@ class Tape {
 class TuringMachine {
     public:
 
-    TuringMachine(Tape tape, std::vector<std::vector<Action>> actions) :
-        tape_m(std::move(tape)),
-        actions_m(std::move(actions))
-    {
+    TuringMachine() {
+        state_m = -1;
+    }
 
+    TuringMachine(Tape && tape,
+                  std::vector<std::vector<Action>> && actions,
+                  std::unordered_map<char32_t, uint32_t> && alphabet)
+    :
+        tape_m(std::move(tape)),
+        actions_m(std::move(actions)),
+        alphabet_m(std::move(alphabet))
+    {
+        state_m = 1;
     }
 
     state_t state() { return state_m; }
@@ -164,7 +205,15 @@ class TuringMachine {
 
         char32_t currSimbol = tape_m.readCurr();
 
-        Action action = actions_m[state_m][currSimbol];
+        auto iter = alphabet_m.find(currSimbol);
+
+        if (iter == alphabet_m.end()) {
+            throw std::logic_error("Unknown charaster in tape");
+        }
+
+        uint32_t index = iter->second;
+
+        Action action = actions_m[state_m][index];
 
         state_m = action.nextState;
 
@@ -189,13 +238,15 @@ class TuringMachine {
         return true;
     }
 
-    private:
+    protected:
 
     state_t state_m = 1;
 
     Tape tape_m;
 
     std::vector<std::vector<Action>> actions_m;
+
+    std::unordered_map<char32_t, uint32_t> alphabet_m;
 };
 
 }
