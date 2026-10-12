@@ -111,6 +111,8 @@ class Tape {
         return data_m.data();
     }
 
+    void setCurrPos(int32_t p) { currPos_m = p; }
+
     private:
 
     // !!!! .size всегда равен максимальному размеру вектора
@@ -237,6 +239,127 @@ class TuringMachine {
 
         return true;
     }
+
+    //!!!
+    // Добавить символ в алфавит. Расширяет все строки actions_m
+    // на один столбец с дефолтным Action.
+    void addSymbol(char32_t c) {
+        if (alphabet_m.count(c)) return;
+
+        const uint32_t idx = static_cast<uint32_t>(alphabet_m.size());
+        alphabet_m[c] = idx;
+
+        Action def;
+        def.nextState = -1;                            // halt по умолчанию
+        def.setChar   = c;                             // «оставить как есть» — самое безопасное
+        def.step      = Action::ActionsEnum::STAY;
+
+        for (auto &row : actions_m) {
+            row.push_back(def);
+        }
+    }
+
+    // Удалить символ. Если он был не последним — переиндексировать alphabet_m.
+    void removeSymbol(char32_t c) {
+        auto it = alphabet_m.find(c);
+        if (it == alphabet_m.end()) return;
+
+        const uint32_t removedIdx = it->second;
+
+        // Удалить столбец из каждой строки
+        for (auto &row : actions_m) {
+            if (removedIdx < row.size()) {
+                row.erase(row.begin() + removedIdx);
+            }
+        }
+
+        // Удалить из алфавита и сдвинуть индексы больше removedIdx
+        alphabet_m.erase(it);
+        for (auto &p : alphabet_m) {
+            if (p.second > removedIdx) p.second -= 1;
+        }
+    }
+
+    int stateCount()  const { return static_cast<int>(actions_m.size()); }
+
+    int symbolCount() const { return static_cast<int>(alphabet_m.size()); }
+
+    bool isHalted()    const { return state_m == -1; }
+
+    char32_t cellAt(int32_t i) const {
+        return tape_m.read(i);
+    }
+
+    void setCellAt(int32_t i, char32_t c) {
+        tape_m.write(i, c);
+    }
+
+    bool isInAlphabet(char32_t c) const {
+        return alphabet_m.find(c) != alphabet_m.end();
+    }
+
+    const std::unordered_map<char32_t, uint32_t> &alphabetMap() const {
+        return alphabet_m;
+    }
+
+    const std::vector<std::vector<Turing::Action>> &actions() const {
+        return actions_m;
+    }
+
+    void setAction(int row, int col, const Action &a) {
+        if (row < 0 || row >= (int)actions_m.size()) return;
+        if (col < 0 || col >= (int)actions_m[row].size()) return;
+        actions_m[row][col] = a;
+    }
+
+    // Добавить одно состояние (строку) с дефолтными действиями.
+    void addState() {
+        std::vector<Action> row(alphabet_m.size());
+        for (const auto &p : alphabet_m) {
+            Action def;
+            def.nextState = -1;               // halt по умолчанию
+            def.setChar   = p.first;
+            def.step      = Action::ActionsEnum::STAY;
+            row[p.second] = def;
+        }
+        actions_m.push_back(std::move(row));
+    }
+
+    // Удалить состояние. Ссылки на него становятся halt, ссылки на бо́льшие — сдвигаются.
+    void removeState(int idx) {
+        if (idx < 0 || idx >= (int)actions_m.size()) return;
+        if (actions_m.size() <= 1) return;    // минимум одно состояние
+
+        actions_m.erase(actions_m.begin() + idx);
+
+        for (auto &row : actions_m) {
+            for (auto &a : row) {
+                if (a.nextState == idx)      a.nextState = -1;
+                else if (a.nextState > idx)  a.nextState -= 1;
+            }
+        }
+
+        if      (state_m == idx) state_m = -1;
+        else if (state_m >  idx) state_m -= 1;
+    }
+
+    // Полный сброс в «пустую» машину: одно состояние, один символ '_'
+    void reset() {
+        tape_m = Tape();
+        alphabet_m.clear();
+        alphabet_m[U'_'] = 0;
+        actions_m.clear();
+        actions_m.resize(1);
+        actions_m[0].resize(1);
+        actions_m[0][0] = Action{ -1, U'_', Action::ActionsEnum::EXIT };
+        state_m = 0;
+    }
+
+    void setState(state_t s) {
+        state_m = s;
+    }
+
+    void setCursor(int32_t p) { tape_m.setCurrPos(p); }
 
     protected:
 

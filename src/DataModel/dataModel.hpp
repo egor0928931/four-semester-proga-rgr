@@ -189,7 +189,7 @@ class TuringMachineQtV : public Turing::TuringMachine {
         alphabet_m = std::move(alphabet);
     }
 
-    void wtiteToFile(const QString & path) {
+    void writeToFile(const QString & path) {
         RawTuringMachine tmHeader;
 
         tmHeader.tapeH.currPos_m = tape_m.currPos();
@@ -232,6 +232,21 @@ class TuringMachineQtV : public Turing::TuringMachine {
         file.flush();
 
         file.close();
+    }
+
+    //!!!
+
+
+
+
+    // Символы, разложенные по их индексам (0..N-1)
+    std::vector<char32_t> alphabetOrdered() const {
+        std::vector<char32_t> out(alphabet_m.size(), U'?');
+        for (const auto &p : alphabet_m) {
+            if (p.second < out.size())
+                out[p.second] = p.first;
+        }
+        return out;
     }
 };
 
